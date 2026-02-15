@@ -36,6 +36,7 @@ jobs:
 
       - name: Zip application for deployment
         run: |
+          chmod +x startup.sh
           zip -r release.zip . -x "*.git*" "venv/*" "frontend/node_modules/*"
 
       - name: Deploy to Azure Web App
