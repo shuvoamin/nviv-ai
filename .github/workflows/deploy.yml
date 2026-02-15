@@ -18,16 +18,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Build and Package Python Backend
-        run: |
-          python -m venv venv
-          source venv/bin/activate
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          # Make sure uvicorn is actually there
-          pip show uvicorn
-
-      - name: Build and Package React Frontend
+      - name: Build React Frontend
         run: |
           cd frontend
           npm install
@@ -36,8 +27,8 @@ jobs:
       - name: Zip application for deployment
         run: |
           chmod +x startup.sh
-          # Important: We INCLUDE venv this time
-          zip -r release.zip . -x "*.git*" "frontend/node_modules/*" ".github/*" "frontend/src/*"
+          # Reverting: Do NOT include local venv (it causes GLIBC errors)
+          zip -r release.zip . -x "*.git*" "venv/*" "frontend/node_modules/*" ".github/*" "frontend/src/*"
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
