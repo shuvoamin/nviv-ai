@@ -128,6 +128,32 @@ heroku config:set AZURE_OPENAI_DEPLOYMENT_NAME=<value>
 git push heroku main
 ```
 
+## Option 4: GitHub Actions Deployment (CI/CD)
+
+Automate your deployments whenever you push to the `main` branch.
+
+### 1. Configure GitHub Secrets
+
+1.  In your GitHub repository, go to **Settings** > **Secrets and variables** > **Actions**.
+2.  Click **New repository secret**.
+3.  Name: `AZURE_WEBAPP_PUBLISH_PROFILE`.
+4.  Value: Paste the content of the Publish Profile downloaded from the Azure Portal (App Service > Get publish profile).
+
+### 2. Update Workflow File
+
+1.  Open [.github/workflows/deploy.yml](file:///.github/workflows/deploy.yml).
+2.  Replace `'YOUR_APP_NAME'` with your actual Azure App Service name.
+
+### 3. Deploy
+
+Push your changes to the `main` branch:
+```bash
+git add .
+git commit -m "Add GitHub Actions workflow"
+git push origin main
+```
+The workflow will automatically trigger and deploy your app.
+
 ## Production Checklist
 
 - [ ] Build frontend for production (`npm run build`)
