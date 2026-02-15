@@ -1,7 +1,15 @@
+import os
+import sys
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from pathlib import Path
+
+# Add the current directory to sys.path to allow importing local modules
+# This helps when the script is run from different working directories
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from chatbot import ChatBot
 import logging
 
