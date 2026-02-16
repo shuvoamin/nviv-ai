@@ -1,7 +1,7 @@
 import os
 import sys
 import uvicorn
-from fastapi import FastAPI, HTTPException, Form, Response
+from fastapi import FastAPI, HTTPException, Form, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pathlib import Path
@@ -67,8 +67,13 @@ async def health_check():
     return {"status": "ok"}
 
 @app.post("/whatsapp")
-async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
-    logger.info(f"Received WhatsApp message from {From}: {Body}")
+async def whatsapp_webhook(
+    Body: str = Form(None), 
+    From: str = Form(...),
+    MediaUrl0: str = Form(None),
+    MediaContentType0: str = Form(None)
+):
+    logger.info(f"Received WhatsApp message from {From}. Body: {Body}, Media: {MediaContentType0}")
     
     if chatbot is None:
         logger.error("Chatbot not initialized")
@@ -77,9 +82,29 @@ async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
         return Response(content=str(resp), media_type="application/xml")
 
     try:
+        user_text = Body or ""
+        
+        # Handle Audio Media
+        if MediaUrl0 and "audio" in MediaContentType0:
+            import requests
+            logger.info(f"Downloading audio from {MediaUrl0}")
+            audio_response = requests.get(MediaUrl0)
+            if audio_response.status_code == 200:
+                logger.info("Transcribing audio...")
+                transcribed_text = chatbot.transcribe_audio(audio_response.content)
+                logger.info(f"Transcribed Text: {transcribed_text}")
+                user_text = transcribed_text
+            else:
+                logger.error(f"Failed to download audio: {audio_response.status_code}")
+                user_text = "[Error: Could not process audio message]"
+
+        if not user_text and not MediaUrl0:
+            resp = MessagingResponse()
+            resp.message("I received an empty message. How can I help you?")
+            return Response(content=str(resp), media_type="application/xml")
+
         # Get AI response with WhatsApp-specific constraint
-        # Twilio has a 1600 character limit, so we aim for 1500.
-        ai_response = chatbot.chat(f"{Body}\n\n[Instruction: Keep your response under 1500 characters.]")
+        ai_response = chatbot.chat(f"{user_text}\n\n[Instruction: Keep your response under 1500 characters.]")
         
         # Create TwiML response
         resp = MessagingResponse()

@@ -8,6 +8,7 @@ class ChatBot:
         self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         self.api_key = os.getenv("AZURE_OPENAI_API_KEY")
         self.deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+        self.whisper_deployment = os.getenv("AZURE_OPENAI_WHISPER_DEPLOYMENT")
         self.api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
 
         self._validate_env()
@@ -34,6 +35,23 @@ class ChatBot:
         
         # Default if no knowledge base file
         return "You are Nviv, a helpful AI assistant."
+
+    def transcribe_audio(self, audio_content) -> str:
+        """Transcribe audio using Azure OpenAI Whisper"""
+        if not self.whisper_deployment:
+            raise ValueError("Whisper deployment name not configured (AZURE_OPENAI_WHISPER_DEPLOYMENT)")
+
+        try:
+            # We use the open() compatible interface if it were a file, 
+            # but since we have content in memory from requests, we use a Tuple
+            # (filename, file_content, content_type)
+            response = self.client.audio.transcriptions.create(
+                model=self.whisper_deployment,
+                file=("audio.ogg", audio_content, "audio/ogg")
+            )
+            return response.text
+        except Exception as e:
+            raise RuntimeError(f"Transcription failed: {str(e)}")
 
 
     def _validate_env(self):
