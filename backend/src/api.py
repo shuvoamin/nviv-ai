@@ -149,8 +149,12 @@ async def meta_webhook(request: Request):
     """
     Handle incoming WhatsApp messages from Meta (POST request).
     """
-    body = await request.json()
-    logger.info(f"Received Meta Webhook event: {body}")
+    try:
+        body = await request.json()
+        logger.info(f"Received Meta Webhook event: {body}")
+    except Exception as e:
+        logger.error(f"Failed to parse Meta JSON: {e}")
+        return {"status": "error"}
 
     # Check if this is a WhatsApp message
     if body.get("object") == "whatsapp_business_account":
@@ -162,35 +166,38 @@ async def meta_webhook(request: Request):
                 if messages:
                     message = messages[0]
                     from_number = message.get("from")
-                    message_id = message.get("id")
                     
                     # Handle Text Messages
                     user_text = ""
                     if message.get("type") == "text":
                         user_text = message.get("text", {}).get("body", "")
+                        logger.info(f"Processing text message from {from_number}: {user_text}")
                     
                     # Handle Audio Messages (Whisper)
                     elif message.get("type") == "audio":
                         audio = message.get("audio", {})
                         media_id = audio.get("id")
+                        logger.info(f"Processing audio message from {from_number}, ID: {media_id}")
                         
-                        # Download audio from Meta
-                        logger.info(f"Downloading Meta audio ID: {media_id}")
                         audio_url = get_meta_media_url(media_id)
                         if audio_url:
                             audio_resp = requests.get(audio_url, headers={"Authorization": f"Bearer {os.getenv('WHATSAPP_ACCESS_TOKEN')}"})
                             if audio_resp.status_code == 200:
                                 transcribed_text = chatbot.transcribe_audio(audio_resp.content)
+                                logger.info(f"Transcribed Text: {transcribed_text}")
                                 user_text = transcribed_text
                             else:
-                                user_text = "[Error: Could not process audio]"
+                                logger.error(f"Failed to download audio: {audio_resp.status_code}")
                     
                     if user_text:
                         # Get AI response
                         ai_response = chatbot.chat(f"{user_text}\n\n[Instruction: Keep your response under 1500 characters.]")
+                        logger.info(f"AI Response generated. Sending to {from_number}...")
                         
                         # Send back via Meta Graph API
                         send_meta_whatsapp_message(from_number, ai_response)
+                    else:
+                        logger.warning(f"No processable text or audio found in message from {from_number}")
                         
     return {"status": "ok"}
 
@@ -198,6 +205,7 @@ def get_meta_media_url(media_id):
     """Helper to get the actual download URL for a media ID from Meta."""
     access_token = os.getenv("WHATSAPP_ACCESS_TOKEN")
     if not access_token:
+        logger.error("WHATSAPP_ACCESS_TOKEN missing while trying to get media URL")
         return None
         
     url = f"https://graph.facebook.com/v18.0/{media_id}"
@@ -205,6 +213,7 @@ def get_meta_media_url(media_id):
     resp = requests.get(url, headers=headers)
     if resp.status_code == 200:
         return resp.json().get("url")
+    logger.error(f"Failed to get media URL from Meta: {resp.text}")
     return None
 
 def send_meta_whatsapp_message(to_number, message_text):
@@ -213,7 +222,7 @@ def send_meta_whatsapp_message(to_number, message_text):
     phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
     
     if not access_token or not phone_number_id:
-        logger.error("Meta WhatsApp credentials missing (WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID)")
+        logger.error(f"Meta credentials missing. Token present: {bool(access_token)}, ID present: {bool(phone_number_id)}")
         return
 
     url = f"https://graph.facebook.com/v18.0/{phone_number_id}/messages"
@@ -232,7 +241,7 @@ def send_meta_whatsapp_message(to_number, message_text):
     if resp.status_code == 200:
         logger.info(f"Message sent to {to_number} successfully.")
     else:
-        logger.error(f"Failed to send Meta message: {resp.text}")
+        logger.error(f"Failed to send Meta message back to {to_number}. Status: {resp.status_code}, Error: {resp.text}")
 
 # Serve static files (frontend) - MUST be last to not interfere with API routes
 from pathlib import Path
