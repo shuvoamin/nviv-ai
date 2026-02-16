@@ -77,8 +77,9 @@ async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
         return Response(content=str(resp), media_type="application/xml")
 
     try:
-        # Get AI response
-        ai_response = chatbot.chat(Body)
+        # Get AI response with WhatsApp-specific constraint
+        # Twilio has a 1600 character limit, so we aim for 1500.
+        ai_response = chatbot.chat(f"{Body}\n\n[Instruction: Keep your response under 1500 characters.]")
         
         # Create TwiML response
         resp = MessagingResponse()
