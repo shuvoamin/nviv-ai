@@ -127,18 +127,22 @@ async def verify_meta_webhook(request: Request):
     Meta sends a challenge to verify this server.
     """
     params = request.query_params
+    logger.info(f"Meta Verification Attempt: {params}")
+    
     mode = params.get("hub.mode")
     token = params.get("hub.verify_token")
     challenge = params.get("hub.challenge")
 
-    verify_token = os.getenv("WHATSAPP_VERIFY_TOKEN", "nviv_verify_token")
+    # Use the token provided by the user
+    verify_token = os.getenv("WHATSAPP_VERIFY_TOKEN", "nviv_verify_token_jan_2026")
 
     if mode == "subscribe" and token == verify_token:
         logger.info("Meta Webhook verified successfully!")
-        return Response(content=challenge)
+        # IMPORTANT: Response must be raw plain text (no JSON quotes)
+        return Response(content=str(challenge), media_type="text/plain")
     
-    logger.warning("Meta Webhook verification failed.")
-    raise HTTPException(status_code=403, detail="Verification failed")
+    logger.warning(f"Meta Webhook verification failed. Expected: {verify_token}, Received: {token}")
+    return Response(content="Verification failed", status_code=403)
 
 @app.post("/meta/webhook")
 async def meta_webhook(request: Request):
