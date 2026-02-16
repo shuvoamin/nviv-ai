@@ -33,6 +33,6 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
         with:
-          app-name: 'nviv-bvg6c5hefcd2ckb9'
+          app-name: 'nviv'
           publish-profile: ${{ secrets.NVIV_WEBAPP_PUBLISH_PROFILE }}
           package: release.zip
