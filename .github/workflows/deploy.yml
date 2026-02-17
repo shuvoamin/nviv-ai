@@ -23,7 +23,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           export PYTHONPATH=$PYTHONPATH:$(pwd)/backend/src
-          pytest backend/tests
+          pytest --cov=backend/src --cov-report=term-missing backend/tests
 
       - name: Build React Frontend
         run: |
