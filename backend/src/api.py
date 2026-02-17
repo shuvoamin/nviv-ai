@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 # Add the current directory to sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from app_state import diag_logger, chatbot, IMAGES_DIR
+import app_state
 from utils.image_utils import save_base64_image
 from routes import twilio_routes, meta_routes, system_routes
 
@@ -48,29 +48,29 @@ class ImageResponse(BaseModel):
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
-    if chatbot is None: raise HTTPException(status_code=503, detail="Service unavailable")
-    if request.reset: chatbot.reset_history()
-    return ChatResponse(message=chatbot.chat(request.message))
+    if app_state.chatbot is None: raise HTTPException(status_code=503, detail="Service unavailable")
+    if request.reset: app_state.chatbot.reset_history()
+    return ChatResponse(message=app_state.chatbot.chat(request.message))
 
 @app.post("/generate-image", response_model=ImageResponse)
 async def generate_image_endpoint(request: ImageRequest, api_request: Request):
-    if chatbot is None: raise HTTPException(status_code=503, detail="Service unavailable")
+    if app_state.chatbot is None: raise HTTPException(status_code=503, detail="Service unavailable")
     try:
-        image_result = chatbot.generate_image(request.prompt)
+        image_result = app_state.chatbot.generate_image(request.prompt)
         image_url = save_base64_image(image_result, api_request.base_url)
         return ImageResponse(url=image_url)
     except Exception as e:
-        diag_logger.error(f"Image generation failed: {e}")
+        app_state.diag_logger.error(f"Image generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/static/generated_images/{filename}")
 async def get_image(filename: str, request: Request):
     """Serve images with explicit headers and diagnostic logging"""
-    filepath = IMAGES_DIR / filename
+    filepath = app_state.IMAGES_DIR / filename
     ua = request.headers.get("user-agent", "Unknown")
     
     if not filepath.exists():
-        diag_logger.error(f"Image 404: {filename} requested by {ua}")
+        app_state.diag_logger.error(f"Image 404: {filename} requested by {ua}")
         raise HTTPException(status_code=404, detail="Image not found")
     
     media_type = "image/png"
@@ -79,7 +79,7 @@ async def get_image(filename: str, request: Request):
     elif filename.endswith(".webp"):
         media_type = "image/webp"
         
-    diag_logger.info(f"Image fetched: {filename} by {ua}. Content-Type: {media_type}")
+    app_state.diag_logger.info(f"Image fetched: {filename} by {ua}. Content-Type: {media_type}")
     return FileResponse(filepath, media_type=media_type)
 
 # Frontend implementation

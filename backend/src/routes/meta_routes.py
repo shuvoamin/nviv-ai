@@ -1,13 +1,13 @@
 import os
 import requests
 from fastapi import APIRouter, Request, BackgroundTasks, Response
-from app_state import diag_logger, chatbot
+import app_state
 from utils.image_utils import save_base64_image
 
 router = APIRouter()
 
 async def process_meta_background(body: dict, host_url: str):
-    diag_logger.info("Meta background task starting...")
+    app_state.diag_logger.info("Meta background task starting...")
     try:
         if body.get("object") != "whatsapp_business_account": return
         for entry in body.get("entry", []):
@@ -22,17 +22,18 @@ async def process_meta_background(body: dict, host_url: str):
                         if audio_url:
                             token = os.getenv('WHATSAPP_ACCESS_TOKEN')
                             audio_resp = requests.get(audio_url, headers={"Authorization": f"Bearer {token}"})
-                            if audio_resp.status_code == 200: user_text = chatbot.transcribe_audio(audio_resp.content)
+                            if audio_resp.status_code == 200: 
+                                user_text = app_state.chatbot.transcribe_audio(audio_resp.content)
                     if user_text:
                         if user_text.lower().startswith("/image"):
                             prompt = user_text[7:].strip()
-                            image_result = chatbot.generate_image(prompt)
+                            image_result = app_state.chatbot.generate_image(prompt)
                             image_url = save_base64_image(image_result, host_url)
                             send_meta_whatsapp_image(from_number, image_url)
                         else:
-                            ai_response = chatbot.chat(f"{user_text}\n\n[Instruction: Keep your response under 1500 characters.]")
+                            ai_response = app_state.chatbot.chat(f"{user_text}\n\n[Instruction: Keep your response under 1500 characters.]")
                             send_meta_whatsapp_message(from_number, ai_response)
-    except Exception as e: diag_logger.error(f"Error in Meta background task: {e}")
+    except Exception as e: app_state.diag_logger.error(f"Error in Meta background task: {e}")
 
 @router.get("/meta/webhook")
 async def verify_meta_webhook(request: Request):

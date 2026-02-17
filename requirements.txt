@@ -6,3 +6,6 @@ twilio
 python-multipart
 requests
 Pillow
+pytest
+pytest-asyncio
+httpx
