@@ -64,14 +64,23 @@ IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 @app.get("/static/generated_images/{filename}")
 async def get_image(filename: str, request: Request):
-    """Serve images with diagnostic logging to see who is requesting them"""
+    """Serve images with explicit headers and diagnostic logging"""
     filepath = IMAGES_DIR / filename
     ua = request.headers.get("user-agent", "Unknown")
+    
     if not filepath.exists():
         diag_logger.error(f"Image 404: {filename} requested by {ua}")
         raise HTTPException(status_code=404, detail="Image not found")
-    diag_logger.info(f"Image fetched: {filename} by {ua}")
-    return FileResponse(filepath)
+    
+    # Force explicit media type based on extension
+    media_type = "image/png"
+    if filename.endswith((".jpg", ".jpeg")):
+        media_type = "image/jpeg"
+    elif filename.endswith(".webp"):
+        media_type = "image/webp"
+        
+    diag_logger.info(f"Image fetched: {filename} by {ua}. Content-Type: {media_type}")
+    return FileResponse(filepath, media_type=media_type)
 
 def save_base64_image(image_data: str, base_url: str) -> str:
     if not image_data.startswith("data:image"):
@@ -134,7 +143,9 @@ async def process_twilio_background(body: str, from_number: str, media_url: str,
             if prompt:
                 image_result = chatbot.generate_image(prompt)
                 image_url = save_base64_image(image_result, host_url)
-                send_twilio_reply(from_number, "Here is your generated image!", image_url)
+                # TEST: Split text and image into two messages to avoid 63019 caption conflict
+                send_twilio_reply(from_number, "Here is your generated image!")
+                send_twilio_reply(from_number, "", image_url)
                 return
         ai_response = chatbot.chat(f"{user_text}\n\n[Instruction: Keep your response under 1500 characters.]")
         send_twilio_reply(from_number, ai_response)
@@ -151,16 +162,25 @@ def send_twilio_reply(to_number: str, message_text: str, image_url: str = None):
         return
     try:
         client = TwilioClient(account_sid, auth_token)
-        params = {"from_": from_number, "to": to_number, "body": message_text}
+        # Build params
+        params = {"from_": from_number, "to": to_number}
+        
+        # Twilio requirement: Must have either body or media_url, or both.
+        # If we have an image, we sometimes omit the body to debug 63019 conflicts.
+        if message_text:
+            params["body"] = message_text
+            
         if image_url:
             diag_logger.info(f"Adding media_url to Twilio params: {image_url}")
             params["media_url"] = [image_url]
+            
+        # Add status callback to track delivery failures
         host_url = os.getenv("BASE_URL", "").rstrip("/")
         if host_url:
             if "azurewebsites.net" in host_url and not host_url.startswith("https"):
                 host_url = host_url.replace("http://", "https://")
             params["status_callback"] = f"{host_url}/twilio/status"
-            diag_logger.info(f"Twilio status callback configured: {params['status_callback']}")
+            
         msg_instance = client.messages.create(**params)
         diag_logger.info(f"Twilio background reply sent. SID: {msg_instance.sid}, Status: {msg_instance.status}")
     except Exception as e:
@@ -281,3 +301,4 @@ if frontend_dist.exists():
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
+ Riverside
