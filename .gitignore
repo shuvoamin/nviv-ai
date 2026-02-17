@@ -39,3 +39,7 @@ dist-ssr
 # Generated images
 backend/static/generated_images/*
 !backend/static/generated_images/.gitkeep
+
+# Testing artifacts
+.coverage
+.pytest_cache/

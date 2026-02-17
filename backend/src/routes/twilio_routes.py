@@ -15,7 +15,7 @@ async def process_twilio_background(body: str, from_number: str, media_url: str,
         if media_url and "audio" in media_type:
             audio_response = requests.get(media_url)
             if audio_response.status_code == 200:
-                user_text = app_state.chatbot.transcribe_audio(audio_resp.content)
+                user_text = app_state.chatbot.transcribe_audio(audio_response.content)
         if not user_text and not media_url:
             return
         if user_text.lower().startswith("/image"):
