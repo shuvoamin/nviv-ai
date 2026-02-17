@@ -47,7 +47,7 @@ IMAGES_DIR = STATIC_DIR / "generated_images"
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 # Mount static folder
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="images")
 
 def save_base64_image(image_data: str, base_url: str) -> str:
     """
