@@ -384,11 +384,12 @@ def get_meta_media_url(media_id):
 
 def send_meta_whatsapp_message(to_number, message_text):
     """Helper to send a message via Meta's Graph API."""
+    diag_logger.info(f"Attempting to send Meta message to {to_number}...")
     access_token = os.getenv("WHATSAPP_ACCESS_TOKEN")
     phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
     
     if not access_token or not phone_number_id:
-        logger.error(f"Meta credentials missing. Token present: {bool(access_token)}, ID present: {bool(phone_number_id)}")
+        diag_logger.error(f"Meta credentials missing. Token present: {bool(access_token)}, ID present: {bool(phone_number_id)}")
         return
 
     url = f"https://graph.facebook.com/v18.0/{phone_number_id}/messages"
@@ -403,11 +404,14 @@ def send_meta_whatsapp_message(to_number, message_text):
         "text": {"body": message_text}
     }
     
-    resp = requests.post(url, headers=headers, json=payload)
-    if resp.status_code == 200:
-        logger.info(f"Message sent to {to_number} successfully.")
-    else:
-        logger.error(f"Failed to send Meta message back to {to_number}. Status: {resp.status_code}, Error: {resp.text}")
+    try:
+        resp = requests.post(url, headers=headers, json=payload)
+        if resp.status_code == 200:
+            diag_logger.info(f"Message sent to {to_number} successfully.")
+        else:
+            diag_logger.error(f"Failed to send Meta message back to {to_number}. Status: {resp.status_code}, Error: {resp.text}")
+    except Exception as e:
+        diag_logger.error(f"Exception during Meta send: {e}")
 
 def send_meta_whatsapp_image(to_number, image_url):
     """Helper to send an image via Meta's Graph API."""
