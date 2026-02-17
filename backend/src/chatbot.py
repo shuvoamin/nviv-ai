@@ -1,7 +1,12 @@
 import os
 import requests
+import logging
 from openai import AzureOpenAI
 from dotenv import load_dotenv
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class ChatBot:
     def __init__(self):
@@ -78,14 +83,26 @@ class ChatBot:
         }
 
         try:
+            logger.info(f"Requesting image generation from URL: {url}")
             response = requests.post(url, headers=headers, json=payload)
-            response.raise_for_status()
+            if response.status_code != 200:
+                logger.error(f"Image generation failed. Status: {response.status_code}, Body: {response.text}")
+                return f"Error: Image generation failed with status {response.status_code}. Details: {response.text}"
+            
             data = response.json()
-            # DALL-E/FLUX usually returns a URL or base64
-            # Azure OpenAI format: data[0].url
-            return data['data'][0]['url']
+            logger.info(f"Image generation response received: {data}")
+            
+            # Format check: Some APIs return 'url' directly, others in a list
+            if 'data' in data and len(data['data']) > 0:
+                return data['data'][0].get('url', 'URL not found in data[0]')
+            elif 'url' in data:
+                return data['url']
+            else:
+                logger.error(f"Unexpected response format: {data}")
+                return "Error: Unexpected response format from image API."
         except Exception as e:
-            raise RuntimeError(f"Image generation failed: {str(e)}")
+            logger.error(f"Exception during image generation: {str(e)}")
+            return f"Error: Image generation failed: {str(e)}"
 
 
     def _validate_env(self):
