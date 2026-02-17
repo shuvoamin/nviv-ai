@@ -164,10 +164,10 @@ Since this app uses Azure OpenAI, you must set your API keys as **Environment Va
 2.  On the left menu, select **Settings** > **Environment variables** (or **Configuration** in some versions).
 3.  Under the **App settings** tab, click **+ Add**.
 4.  Add the following variables:
-    *   `AZURE_OPENAI_ENDPOINT`: Your Azure OpenAI endpoint URL.
-    *   `AZURE_OPENAI_API_KEY`: Your Azure OpenAI API key.
-    *   `AZURE_OPENAI_DEPLOYMENT_NAME`: The name of your model deployment (e.g., `gpt-35-turbo`).
-    *   `AZURE_OPENAI_API_VERSION`: (Optional) Defaults to `2024-02-15-preview`.
+    *   **Azure OpenAI (Chat)**: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT_NAME`, `AZURE_OPENAI_API_VERSION`.
+    *   **Azure AI Foundry (Images)**: `AZURE_OPENAI_FLUX_URL`, `AZURE_OPENAI_FLUX_DEPLOYMENT`.
+    *   **Twilio (WhatsApp)**: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`.
+    *   **Meta (Native WhatsApp)**: `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`.
 5.  Click **Apply** at the bottom, then click **Confirm** to restart your app with the new settings.
 
 ---
