@@ -7,6 +7,10 @@ from pydantic import BaseModel
 from pathlib import Path
 from twilio.twiml.messaging_response import MessagingResponse
 import requests
+import base64
+import uuid
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
 
 # Add the current directory to sys.path to allow importing local modules
 # This helps when the script is run from different working directories
@@ -35,6 +39,47 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
+
+# --- Image Hosting Setup ---
+# Create static/images directory
+STATIC_DIR = Path(__file__).parent.parent / "static"
+IMAGES_DIR = STATIC_DIR / "generated_images"
+IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+
+# Mount static folder
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+def save_base64_image(image_data: str, base_url: str) -> str:
+    """
+    Saves a base64 Data URI to a file and returns the public URL.
+    Input: "data:image/png;base64,iVBOR..."
+    Output: "https://.../static/generated_images/uuid.png"
+    """
+    if not image_data.startswith("data:image"):
+        return image_data # Already a URL?
+
+    try:
+        # Extract base64 part
+        header, encoded = image_data.split(",", 1)
+        # Determine extension
+        ext = "png"
+        if "jpeg" in header: ext = "jpg"
+        elif "webp" in header: ext = "webp"
+        
+        filename = f"{uuid.uuid4()}.{ext}"
+        filepath = IMAGES_DIR / filename
+        
+        with open(filepath, "wb") as f:
+            f.write(base64.b64decode(encoded))
+            
+        # Construct public URL
+        # Ensure base_url doesn't have double slashes
+        public_url = f"{str(base_url).rstrip('/')}/static/generated_images/{filename}"
+        logger.info(f"Image saved locally: {public_url}")
+        return public_url
+    except Exception as e:
+        logger.error(f"Failed to save base64 image: {e}")
+        return image_data # Fallback to original
 
 class ChatRequest(BaseModel):
     message: str
@@ -70,12 +115,14 @@ async def chat_endpoint(request: ChatRequest):
     return ChatResponse(message=response)
 
 @app.post("/generate-image", response_model=ImageResponse)
-async def generate_image_endpoint(request: ImageRequest):
+async def generate_image_endpoint(request: ImageRequest, api_request: Request):
     if chatbot is None:
         raise HTTPException(status_code=503, detail="Chatbot service not available")
     
     try:
-        image_url = chatbot.generate_image(request.prompt)
+        image_result = chatbot.generate_image(request.prompt)
+        # Convert base64 to public URL for WhatsApp/Web consistency
+        image_url = save_base64_image(image_result, api_request.base_url)
         return ImageResponse(url=image_url)
     except Exception as e:
         logger.error(f"Image generation failed: {e}")
@@ -87,6 +134,7 @@ async def health_check():
 
 @app.post("/whatsapp")
 async def whatsapp_webhook(
+    request: Request,
     Body: str = Form(None), 
     From: str = Form(...),
     MediaUrl0: str = Form(None),
@@ -126,7 +174,13 @@ async def whatsapp_webhook(
             prompt = user_text[7:].strip()
             if prompt:
                 logger.info(f"Generating image for Twilio: {prompt}")
-                image_url = chatbot.generate_image(prompt)
+                # We need the base URL for the public link
+                # Twilio doesn't provide a direct way to get our own URL, but we can infer it or use an env var
+                # For now, we'll try to use the request host
+                host_url = f"{request.url.scheme}://{request.url.netloc}"
+                image_result = chatbot.generate_image(prompt)
+                image_url = save_base64_image(image_result, host_url)
+                
                 resp = MessagingResponse()
                 msg = resp.message("Here is your generated image!")
                 msg.media(image_url)
@@ -224,7 +278,10 @@ async def meta_webhook(request: Request):
                             if prompt:
                                 logger.info(f"Generating image for Meta: {prompt}")
                                 try:
-                                    image_url = chatbot.generate_image(prompt)
+                                    # Use host from request
+                                    host_url = f"{request.url.scheme}://{request.url.netloc}"
+                                    image_result = chatbot.generate_image(prompt)
+                                    image_url = save_base64_image(image_result, host_url)
                                     send_meta_whatsapp_image(from_number, image_url)
                                 except Exception as e:
                                     logger.error(f"Meta image gen failed: {e}")
