@@ -12,6 +12,8 @@ import base64
 import uuid
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from PIL import Image
+import io
 
 # Add the current directory to sys.path to allow importing local modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -72,9 +74,9 @@ async def get_image(filename: str, request: Request):
         diag_logger.error(f"Image 404: {filename} requested by {ua}")
         raise HTTPException(status_code=404, detail="Image not found")
     
-    # Force explicit media type based on extension
+    # Auto-detect media type
     media_type = "image/png"
-    if filename.endswith((".jpg", ".jpeg")):
+    if filename.endswith(".jpg") or filename.endswith(".jpeg"):
         media_type = "image/jpeg"
     elif filename.endswith(".webp"):
         media_type = "image/webp"
@@ -83,27 +85,34 @@ async def get_image(filename: str, request: Request):
     return FileResponse(filepath, media_type=media_type)
 
 def save_base64_image(image_data: str, base_url: str) -> str:
+    """Saves base64 image and transcodes to JPEG for WhatsApp compatibility"""
     if not image_data.startswith("data:image"):
         return image_data
     try:
         header, encoded = image_data.split(",", 1)
-        ext = "png"
-        if "jpeg" in header: ext = "jpg"
-        elif "webp" in header: ext = "webp"
-        filename = f"{uuid.uuid4()}.{ext}"
+        # Force JPEG for maximum WhatsApp/Twilio compatibility (fixes 63019)
+        filename = f"{uuid.uuid4()}.jpg"
         filepath = IMAGES_DIR / filename
-        with open(filepath, "wb") as f:
-            f.write(base64.b64decode(encoded))
+        
+        # Decode and transcode to RGB JPEG
+        image_bytes = base64.b64decode(encoded)
+        img = Image.open(io.BytesIO(image_bytes))
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        img.save(filepath, "JPEG", quality=85)
+        
         filesize_kb = filepath.stat().st_size / 1024
         diag_logger.info(f"Image saved: {filename} ({filesize_kb:.2f} KB)")
+        
         url_str = str(base_url).rstrip('/')
         if "azurewebsites.net" in url_str and not url_str.startswith("https"):
             url_str = url_str.replace("http://", "https://")
+            
         public_url = f"{url_str}/static/generated_images/{filename}"
-        diag_logger.info(f"Image saved locally: {public_url}")
+        diag_logger.info(f"Image available at: {public_url}")
         return public_url
     except Exception as e:
-        diag_logger.error(f"Failed to save base64 image: {e}")
+        diag_logger.error(f"Failed to transcode base64 image: {e}")
         return image_data
 
 class ChatRequest(BaseModel):
@@ -143,7 +152,7 @@ async def process_twilio_background(body: str, from_number: str, media_url: str,
             if prompt:
                 image_result = chatbot.generate_image(prompt)
                 image_url = save_base64_image(image_result, host_url)
-                # TEST: Split text and image into two messages to avoid 63019 caption conflict
+                # Split messages to avoid caption conflicts
                 send_twilio_reply(from_number, "Here is your generated image!")
                 send_twilio_reply(from_number, "", image_url)
                 return
@@ -162,7 +171,6 @@ def send_twilio_reply(to_number: str, message_text: str, image_url: str = None):
         return
     try:
         client = TwilioClient(account_sid, auth_token)
-        # Build params
         params = {"from_": from_number, "to": to_number}
         if message_text:
             params["body"] = message_text
