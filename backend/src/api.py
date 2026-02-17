@@ -171,7 +171,7 @@ def send_twilio_reply(to_number: str, message_text: str, image_url: str = None):
 
     if not all([account_sid, auth_token, from_number]):
         msg = "CRITICAL: Twilio credentials (SID, Token, or FromNumber) are missing in environment variables! Messaging will not work."
-        logger.error(msg)
+        diag_logger.error(msg)
         return
 
     try:
@@ -182,12 +182,13 @@ def send_twilio_reply(to_number: str, message_text: str, image_url: str = None):
             "body": message_text
         }
         if image_url:
+            diag_logger.info(f"Adding media_url to Twilio params: {image_url}")
             params["media_url"] = [image_url]
             
         client.messages.create(**params)
-        logger.info(f"Twilio background reply sent to {to_number}")
+        diag_logger.info(f"Twilio background reply sent to {to_number}")
     except Exception as e:
-        logger.error(f"Failed to send Twilio outbound: {e}")
+        diag_logger.error(f"Failed to send Twilio outbound: {e}")
 
 async def process_meta_background(body: dict, host_url: str):
     """Processes Meta event in background"""
@@ -196,7 +197,7 @@ async def process_meta_background(body: dict, host_url: str):
         diag_logger.info(f"Meta event object: {body.get('object')}")
         
         if body.get("object") != "whatsapp_business_account":
-            logger.warning(f"Meta event object is not 'whatsapp_business_account'. Skipping. (Found: {body.get('object')})")
+            diag_logger.warning(f"Meta event object is not 'whatsapp_business_account'. Skipping. (Found: {body.get('object')})")
             return
 
         for entry_idx, entry in enumerate(body.get("entry", [])):
@@ -300,7 +301,7 @@ async def whatsapp_webhook(
     MediaUrl0: str = Form(None),
     MediaContentType0: str = Form(None)
 ):
-    logger.info(f"Received Twilio WhatsApp message from {From}. (Acknowledging immediately)")
+    diag_logger.info(f"Received Twilio WhatsApp message from {From}. (Acknowledging immediately)")
     
     if chatbot is None:
         resp = MessagingResponse()
@@ -326,7 +327,7 @@ async def verify_meta_webhook(request: Request):
     Meta sends a challenge to verify this server.
     """
     params = request.query_params
-    logger.info(f"Meta Verification Attempt: {params}")
+    diag_logger.info(f"Meta Verification Attempt: {params}")
     
     mode = params.get("hub.mode")
     token = params.get("hub.verify_token")
@@ -336,11 +337,11 @@ async def verify_meta_webhook(request: Request):
     verify_token = os.getenv("WHATSAPP_VERIFY_TOKEN", "nviv_verify_token_jan_2026")
 
     if mode == "subscribe" and token == verify_token:
-        logger.info("Meta Webhook verified successfully!")
+        diag_logger.info("Meta Webhook verified successfully!")
         # IMPORTANT: Response must be raw plain text (no JSON quotes)
         return Response(content=str(challenge), media_type="text/plain")
     
-    logger.warning(f"Meta Webhook verification failed. Expected: {verify_token}, Received: {token}")
+    diag_logger.warning(f"Meta Webhook verification failed. Expected: {verify_token}, Received: {token}")
     return Response(content="Verification failed", status_code=403)
 
 @app.post("/meta/webhook")
@@ -350,9 +351,9 @@ async def meta_webhook(request: Request, background_tasks: BackgroundTasks):
     """
     try:
         body = await request.json()
-        logger.info(f"Received Meta Webhook event. (Acknowledging immediately)")
+        diag_logger.info(f"Received Meta Webhook event. (Acknowledging immediately)")
     except Exception as e:
-        logger.error(f"Failed to parse Meta JSON: {e}")
+        diag_logger.error(f"Failed to parse Meta JSON: {e}")
         return {"status": "error"}
 
     # Add to background tasks
@@ -371,7 +372,7 @@ def get_meta_media_url(media_id):
     """Helper to get the actual download URL for a media ID from Meta."""
     access_token = os.getenv("WHATSAPP_ACCESS_TOKEN")
     if not access_token:
-        logger.error("WHATSAPP_ACCESS_TOKEN missing while trying to get media URL")
+        diag_logger.error("WHATSAPP_ACCESS_TOKEN missing while trying to get media URL")
         return None
         
     url = f"https://graph.facebook.com/v18.0/{media_id}"
@@ -379,7 +380,7 @@ def get_meta_media_url(media_id):
     resp = requests.get(url, headers=headers)
     if resp.status_code == 200:
         return resp.json().get("url")
-    logger.error(f"Failed to get media URL from Meta: {resp.text}")
+    diag_logger.error(f"Failed to get media URL from Meta: {resp.text}")
     return None
 
 def send_meta_whatsapp_message(to_number, message_text):
@@ -415,11 +416,12 @@ def send_meta_whatsapp_message(to_number, message_text):
 
 def send_meta_whatsapp_image(to_number, image_url):
     """Helper to send an image via Meta's Graph API."""
+    diag_logger.info(f"Attempting to send Meta image to {to_number}...")
     access_token = os.getenv("WHATSAPP_ACCESS_TOKEN")
     phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
     
     if not access_token or not phone_number_id:
-        logger.error("Meta credentials missing for image sending.")
+        diag_logger.error("Meta credentials missing for image sending.")
         return
 
     url = f"https://graph.facebook.com/v18.0/{phone_number_id}/messages"
@@ -434,24 +436,27 @@ def send_meta_whatsapp_image(to_number, image_url):
         "image": {"link": image_url}
     }
     
-    resp = requests.post(url, headers=headers, json=payload)
-    if resp.status_code == 200:
-        logger.info(f"Image sent to {to_number} successfully.")
-    else:
-        logger.error(f"Failed to send Meta image: {resp.text}")
+    try:
+        resp = requests.post(url, headers=headers, json=payload)
+        if resp.status_code == 200:
+            diag_logger.info(f"Image sent to {to_number} successfully.")
+        else:
+            diag_logger.error(f"Failed to send Meta image back to {to_number}. Status: {resp.status_code}, Error: {resp.text}")
+    except Exception as e:
+        diag_logger.error(f"Exception during Meta image send: {e}")
 
 # Serve static files (frontend) - MUST be last to not interfere with API routes
 from pathlib import Path
 frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
 
-logger.info(f"Checking for frontend at: {frontend_dist.absolute()}")
+diag_logger.info(f"Checking for frontend at: {frontend_dist.absolute()}")
 
 if frontend_dist.exists():
     from fastapi.staticfiles import StaticFiles
     app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="static")
-    logger.info("Frontend dist found and mounted.")
+    diag_logger.info("Frontend dist found and mounted.")
 else:
-    logger.warning(f"Frontend dist NOT found at {frontend_dist.absolute()}. Only API will be available.")
+    diag_logger.warning(f"Frontend dist NOT found at {frontend_dist.absolute()}. Only API will be available.")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
