@@ -1,4 +1,4 @@
-# Deployment Guide - Azure Chatbot
+# Deployment Guide - Nviv AI Chatbot
 
 This guide covers multiple deployment options for your Azure OpenAI chatbot application.
 

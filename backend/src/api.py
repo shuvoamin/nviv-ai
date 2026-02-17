@@ -15,7 +15,7 @@ import app_state
 from utils.image_utils import save_base64_image
 from routes import twilio_routes, meta_routes, system_routes
 
-app = FastAPI(title="Nviv", description="Modular API for Nviv AI Chatbot")
+app = FastAPI(title="Nviv AI", description="Enterprise API for Nviv AI Chatbot")
 
 # Configure CORS
 app.add_middleware(

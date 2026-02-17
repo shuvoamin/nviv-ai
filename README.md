@@ -1,6 +1,6 @@
-# Azure Chatbot Demo
+# Nviv AI
 
-This is a simple demo project for building a chatbot using Azure OpenAI and Python.
+This is a professional AI chatbot project built using Azure OpenAI and Python.
 
 ## Prerequisites
 
@@ -12,7 +12,7 @@ This is a simple demo project for building a chatbot using Azure OpenAI and Pyth
 1.  **Clone the repository or navigate to the project directory:**
 
     ```bash
-    cd azure-chatbot-demo
+    cd nviv-ai
     ```
 
 2.  **Create a virtual environment (optional but recommended):**
