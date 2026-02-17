@@ -36,11 +36,27 @@ This is a simple demo project for building a chatbot using Azure OpenAI and Pyth
       cp .env.example .env
       ```
 
-    - Open `.env` in a text editor and fill in your Azure OpenAI credentials:
-        - `AZURE_OPENAI_ENDPOINT`: Your Azure OpenAI endpoint URL (e.g., `https://my-resource.openai.azure.com/`).
+    - Open `.env` in a text editor and fill in your credentials:
+        
+        **Azure OpenAI (Chat)**
+        - `AZURE_OPENAI_ENDPOINT`: Your Azure OpenAI endpoint URL.
         - `AZURE_OPENAI_API_KEY`: Your Azure OpenAI API key.
         - `AZURE_OPENAI_DEPLOYMENT_NAME`: The name of your deployed model (e.g., `gpt-35-turbo`).
         - `AZURE_OPENAI_API_VERSION`: API version (default is `2024-02-15-preview`).
+
+        **Azure AI Foundry (Image Generation)**
+        - `AZURE_OPENAI_FLUX_URL`: The REST endpoint for the FLUX model in Azure AI Foundry.
+        - `AZURE_OPENAI_FLUX_DEPLOYMENT`: The deployment name for FLUX (e.g., `flux-2-pro`).
+
+        **Twilio (WhatsApp)**
+        - `TWILIO_ACCOUNT_SID`: Your Twilio Account SID.
+        - `TWILIO_AUTH_TOKEN`: Your Twilio Auth Token.
+        - `TWILIO_FROM_NUMBER`: Your Twilio WhatsApp number (e.g., `whatsapp:+14155238886`).
+
+        **Meta (Native WhatsApp)**
+        - `WHATSAPP_ACCESS_TOKEN`: Your Meta Permanent Access Token.
+        - `WHATSAPP_PHONE_NUMBER_ID`: Your WhatsApp Phone Number ID.
+        - `WHATSAPP_VERIFY_TOKEN`: A custom string for webhook verification.
 
 ## Usage
 
