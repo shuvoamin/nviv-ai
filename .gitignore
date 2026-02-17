@@ -37,5 +37,5 @@ dist-ssr
 *.sw?
 
 # Generated images
-static/generated_images/*
-!static/generated_images/.gitkeep
+backend/static/generated_images/*
+!backend/static/generated_images/.gitkeep
