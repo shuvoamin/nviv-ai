@@ -1,4 +1,5 @@
 import os
+import requests
 from openai import AzureOpenAI
 from dotenv import load_dotenv
 
@@ -9,6 +10,7 @@ class ChatBot:
         self.api_key = os.getenv("AZURE_OPENAI_API_KEY")
         self.deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
         self.whisper_deployment = os.getenv("AZURE_OPENAI_WHISPER_DEPLOYMENT")
+        self.flux_deployment = os.getenv("AZURE_OPENAI_FLUX_DEPLOYMENT")
         self.api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
 
         self._validate_env()
@@ -52,6 +54,38 @@ class ChatBot:
             return response.text
         except Exception as e:
             raise RuntimeError(f"Transcription failed: {str(e)}")
+
+    def generate_image(self, prompt: str) -> str:
+        """Generate image using FLUX.2-pro (Azure AI Inference)"""
+        if not self.flux_deployment:
+            raise ValueError("FLUX deployment name not configured (AZURE_OPENAI_FLUX_DEPLOYMENT)")
+
+        # Construct the URL for Azure AI Inference Image Generation
+        # Usually: {endpoint}/openai/deployments/{deployment}/images/generations?api-version={version}
+        # Or if it's a model catalog endpoint: {endpoint}/v1/images/generations
+        
+        url = f"{self.endpoint}/openai/deployments/{self.flux_deployment}/images/generations?api-version=2024-02-15-preview"
+        
+        headers = {
+            "api-key": self.api_key,
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "prompt": prompt,
+            "n": 1,
+            "size": "1024x1024"
+        }
+
+        try:
+            response = requests.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            # DALL-E/FLUX usually returns a URL or base64
+            # Azure OpenAI format: data[0].url
+            return data['data'][0]['url']
+        except Exception as e:
+            raise RuntimeError(f"Image generation failed: {str(e)}")
 
 
     def _validate_env(self):

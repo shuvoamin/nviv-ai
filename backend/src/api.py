@@ -43,6 +43,12 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     message: str
 
+class ImageRequest(BaseModel):
+    prompt: str
+
+class ImageResponse(BaseModel):
+    url: str
+
 # Initialize chatbot
 try:
     chatbot = ChatBot()
@@ -62,6 +68,18 @@ async def chat_endpoint(request: ChatRequest):
     
     response = chatbot.chat(request.message)
     return ChatResponse(message=response)
+
+@app.post("/generate-image", response_model=ImageResponse)
+async def generate_image_endpoint(request: ImageRequest):
+    if chatbot is None:
+        raise HTTPException(status_code=503, detail="Chatbot service not available")
+    
+    try:
+        image_url = chatbot.generate_image(request.prompt)
+        return ImageResponse(url=image_url)
+    except Exception as e:
+        logger.error(f"Image generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 async def health_check():
@@ -103,6 +121,16 @@ async def whatsapp_webhook(
             resp = MessagingResponse()
             resp.message("I received an empty message. How can I help you?")
             return Response(content=str(resp), media_type="application/xml")
+
+        if user_text.lower().startswith("/image"):
+            prompt = user_text[7:].strip()
+            if prompt:
+                logger.info(f"Generating image for Twilio: {prompt}")
+                image_url = chatbot.generate_image(prompt)
+                resp = MessagingResponse()
+                msg = resp.message("Here is your generated image!")
+                msg.media(image_url)
+                return Response(content=str(resp), media_type="application/xml")
 
         # Get AI response with WhatsApp-specific constraint
         ai_response = chatbot.chat(f"{user_text}\n\n[Instruction: Keep your response under 1500 characters.]")
@@ -190,12 +218,24 @@ async def meta_webhook(request: Request):
                                 logger.error(f"Failed to download audio: {audio_resp.status_code}")
                     
                     if user_text:
-                        # Get AI response
-                        ai_response = chatbot.chat(f"{user_text}\n\n[Instruction: Keep your response under 1500 characters.]")
-                        logger.info(f"AI Response generated. Sending to {from_number}...")
-                        
-                        # Send back via Meta Graph API
-                        send_meta_whatsapp_message(from_number, ai_response)
+                        # Detect image request
+                        if user_text.lower().startswith("/image"):
+                            prompt = user_text[7:].strip()
+                            if prompt:
+                                logger.info(f"Generating image for Meta: {prompt}")
+                                try:
+                                    image_url = chatbot.generate_image(prompt)
+                                    send_meta_whatsapp_image(from_number, image_url)
+                                except Exception as e:
+                                    logger.error(f"Meta image gen failed: {e}")
+                                    send_meta_whatsapp_message(from_number, "Sorry, I couldn't generate that image.")
+                        else:
+                            # Get AI response
+                            ai_response = chatbot.chat(f"{user_text}\n\n[Instruction: Keep your response under 1500 characters.]")
+                            logger.info(f"AI Response generated. Sending to {from_number}...")
+                            
+                            # Send back via Meta Graph API
+                            send_meta_whatsapp_message(from_number, ai_response)
                     else:
                         logger.warning(f"No processable text or audio found in message from {from_number}")
                         
@@ -242,6 +282,33 @@ def send_meta_whatsapp_message(to_number, message_text):
         logger.info(f"Message sent to {to_number} successfully.")
     else:
         logger.error(f"Failed to send Meta message back to {to_number}. Status: {resp.status_code}, Error: {resp.text}")
+
+def send_meta_whatsapp_image(to_number, image_url):
+    """Helper to send an image via Meta's Graph API."""
+    access_token = os.getenv("WHATSAPP_ACCESS_TOKEN")
+    phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+    
+    if not access_token or not phone_number_id:
+        logger.error("Meta credentials missing for image sending.")
+        return
+
+    url = f"https://graph.facebook.com/v18.0/{phone_number_id}/messages"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to_number,
+        "type": "image",
+        "image": {"link": image_url}
+    }
+    
+    resp = requests.post(url, headers=headers, json=payload)
+    if resp.status_code == 200:
+        logger.info(f"Image sent to {to_number} successfully.")
+    else:
+        logger.error(f"Failed to send Meta image: {resp.text}")
 
 # Serve static files (frontend) - MUST be last to not interfere with API routes
 from pathlib import Path

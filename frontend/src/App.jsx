@@ -21,19 +21,25 @@ function App() {
 
   const sendMessage = async (e) => {
     e.preventDefault()
-    if (!input.trim()) return
-
+    const isImageRequest = input.toLowerCase().startsWith('/image')
     const userMessage = { role: 'user', content: input }
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setIsLoading(true)
 
     try {
-      const response = await axios.post('/chat', {
-        message: input
-      })
+      let assistantMessage;
+      if (isImageRequest) {
+        const prompt = input.substring(7).trim()
+        const response = await axios.post('/generate-image', { prompt })
+        assistantMessage = { role: 'assistant', content: response.data.url, type: 'image' }
+      } else {
+        const response = await axios.post('/chat', {
+          message: input
+        })
+        assistantMessage = { role: 'assistant', content: response.data.message, type: 'text' }
+      }
 
-      const assistantMessage = { role: 'assistant', content: response.data.message }
       setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
       console.error('Error sending message:', error)
@@ -54,7 +60,11 @@ function App() {
           {messages.map((msg, index) => (
             <div key={index} className={`message ${msg.role}`}>
               <div className="message-bubble">
-                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                {msg.type === 'image' ? (
+                  <img src={msg.content} alt="Generated" className="generated-image" />
+                ) : (
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                )}
               </div>
             </div>
           ))}
