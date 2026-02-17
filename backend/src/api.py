@@ -11,6 +11,7 @@ import requests
 import base64
 import uuid
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 # Add the current directory to sys.path to allow importing local modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -61,32 +62,34 @@ STATIC_DIR = Path(__file__).parent.parent / "static"
 IMAGES_DIR = STATIC_DIR / "generated_images"
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
-# Mount static folder
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="images")
+@app.get("/static/generated_images/{filename}")
+async def get_image(filename: str, request: Request):
+    """Serve images with diagnostic logging to see who is requesting them"""
+    filepath = IMAGES_DIR / filename
+    ua = request.headers.get("user-agent", "Unknown")
+    if not filepath.exists():
+        diag_logger.error(f"Image 404: {filename} requested by {ua}")
+        raise HTTPException(status_code=404, detail="Image not found")
+    diag_logger.info(f"Image fetched: {filename} by {ua}")
+    return FileResponse(filepath)
 
 def save_base64_image(image_data: str, base_url: str) -> str:
     if not image_data.startswith("data:image"):
         return image_data
-
     try:
         header, encoded = image_data.split(",", 1)
         ext = "png"
         if "jpeg" in header: ext = "jpg"
         elif "webp" in header: ext = "webp"
-        
         filename = f"{uuid.uuid4()}.{ext}"
         filepath = IMAGES_DIR / filename
-        
         with open(filepath, "wb") as f:
             f.write(base64.b64decode(encoded))
-            
         filesize_kb = filepath.stat().st_size / 1024
         diag_logger.info(f"Image saved: {filename} ({filesize_kb:.2f} KB)")
-            
         url_str = str(base_url).rstrip('/')
         if "azurewebsites.net" in url_str and not url_str.startswith("https"):
             url_str = url_str.replace("http://", "https://")
-            
         public_url = f"{url_str}/static/generated_images/{filename}"
         diag_logger.info(f"Image saved locally: {public_url}")
         return public_url
@@ -124,10 +127,8 @@ async def process_twilio_background(body: str, from_number: str, media_url: str,
             audio_response = requests.get(media_url)
             if audio_response.status_code == 200:
                 user_text = chatbot.transcribe_audio(audio_response.content)
-        
         if not user_text and not media_url:
             return
-
         if user_text.lower().startswith("/image"):
             prompt = user_text[7:].strip()
             if prompt:
@@ -135,7 +136,6 @@ async def process_twilio_background(body: str, from_number: str, media_url: str,
                 image_url = save_base64_image(image_result, host_url)
                 send_twilio_reply(from_number, "Here is your generated image!", image_url)
                 return
-
         ai_response = chatbot.chat(f"{user_text}\n\n[Instruction: Keep your response under 1500 characters.]")
         send_twilio_reply(from_number, ai_response)
     except Exception as e:
@@ -146,26 +146,21 @@ def send_twilio_reply(to_number: str, message_text: str, image_url: str = None):
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
     from_number = os.getenv("TWILIO_FROM_NUMBER")
-
     if not all([account_sid, auth_token, from_number]):
         diag_logger.error("CRITICAL: Twilio credentials missing!")
         return
-
     try:
         client = TwilioClient(account_sid, auth_token)
         params = {"from_": from_number, "to": to_number, "body": message_text}
         if image_url:
             diag_logger.info(f"Adding media_url to Twilio params: {image_url}")
             params["media_url"] = [image_url]
-            
-        # Add status callback to track delivery failures
         host_url = os.getenv("BASE_URL", "").rstrip("/")
         if host_url:
             if "azurewebsites.net" in host_url and not host_url.startswith("https"):
                 host_url = host_url.replace("http://", "https://")
             params["status_callback"] = f"{host_url}/twilio/status"
             diag_logger.info(f"Twilio status callback configured: {params['status_callback']}")
-            
         msg_instance = client.messages.create(**params)
         diag_logger.info(f"Twilio background reply sent. SID: {msg_instance.sid}, Status: {msg_instance.status}")
     except Exception as e:
@@ -174,23 +169,20 @@ def send_twilio_reply(to_number: str, message_text: str, image_url: str = None):
 async def process_meta_background(body: dict, host_url: str):
     diag_logger.info("Meta background task starting...")
     try:
-        if body.get("object") != "whatsapp_business_account":
-            return
+        if body.get("object") != "whatsapp_business_account": return
         for entry in body.get("entry", []):
             for change in entry.get("changes", []):
                 value = change.get("value", {})
                 for message in value.get("messages", []):
                     from_number = message.get("from")
                     user_text = ""
-                    if message.get("type") == "text":
-                        user_text = message.get("text", {}).get("body", "")
+                    if message.get("type") == "text": user_text = message.get("text", {}).get("body", "")
                     elif message.get("type") == "audio":
                         audio_url = get_meta_media_url(message.get("audio", {}).get("id"))
                         if audio_url:
                             token = os.getenv('WHATSAPP_ACCESS_TOKEN')
                             audio_resp = requests.get(audio_url, headers={"Authorization": f"Bearer {token}"})
-                            if audio_resp.status_code == 200:
-                                user_text = chatbot.transcribe_audio(audio_resp.content)
+                            if audio_resp.status_code == 200: user_text = chatbot.transcribe_audio(audio_resp.content)
                     if user_text:
                         if user_text.lower().startswith("/image"):
                             prompt = user_text[7:].strip()
@@ -200,8 +192,7 @@ async def process_meta_background(body: dict, host_url: str):
                         else:
                             ai_response = chatbot.chat(f"{user_text}\n\n[Instruction: Keep your response under 1500 characters.]")
                             send_meta_whatsapp_message(from_number, ai_response)
-    except Exception as e:
-        diag_logger.error(f"Error in Meta background task: {e}")
+    except Exception as e: diag_logger.error(f"Error in Meta background task: {e}")
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
