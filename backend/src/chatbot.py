@@ -61,48 +61,55 @@ class ChatBot:
             raise RuntimeError(f"Transcription failed: {str(e)}")
 
     def generate_image(self, prompt: str) -> str:
-        """Generate image using FLUX.2-pro (Azure AI Inference)"""
+        """Generate image using FLUX.2-pro following the exact Microsoft REST example (MaaS)"""
         if not self.flux_deployment:
             raise ValueError("FLUX deployment name not configured (AZURE_OPENAI_FLUX_DEPLOYMENT)")
 
-        # Construct the URL for Azure AI Inference Image Generation
-        # Usually: {endpoint}/openai/deployments/{deployment}/images/generations?api-version={version}
-        # Or if it's a model catalog endpoint: {endpoint}/v1/images/generations
+        flux_url = os.getenv("AZURE_OPENAI_FLUX_URL")
         
-        url = f"{self.endpoint}/openai/deployments/{self.flux_deployment}/images/generations?api-version=2024-02-15-preview"
-        
+        # If no custom URL, build it using the services AI domain pattern
+        if not flux_url:
+            base_url = self.endpoint.replace("cognitiveservices.azure.com", "services.ai.azure.com").rstrip("/")
+            flux_url = f"{base_url}/providers/blackforestlabs/v1/{self.flux_deployment}?api-version=preview"
+
         headers = {
-            "api-key": self.api_key,
+            "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
         
+        # Payload must match the MaaS REST example exactly
         payload = {
             "prompt": prompt,
+            "width": 1024,
+            "height": 1024,
             "n": 1,
-            "size": "1024x1024"
+            # Note: The curl example uses "FLUX.2-pro" (exact case)
+            "model": "FLUX.2-pro" 
         }
 
         try:
-            logger.info(f"Requesting image generation from URL: {url}")
-            response = requests.post(url, headers=headers, json=payload)
+            logger.info(f"Targeting Image API: {flux_url}")
+            response = requests.post(flux_url, headers=headers, json=payload)
+            
             if response.status_code != 200:
                 logger.error(f"Image generation failed. Status: {response.status_code}, Body: {response.text}")
-                return f"Error: Image generation failed with status {response.status_code}. Details: {response.text}"
+                # Raising here allows api.py to catch and return the detail to the frontend
+                raise RuntimeError(f"Image API returned {response.status_code}: {response.text}")
             
             data = response.json()
-            logger.info(f"Image generation response received: {data}")
             
-            # Format check: Some APIs return 'url' directly, others in a list
+            # The REST example returns base64 in data[0].b64_json
             if 'data' in data and len(data['data']) > 0:
-                return data['data'][0].get('url', 'URL not found in data[0]')
-            elif 'url' in data:
-                return data['url']
-            else:
-                logger.error(f"Unexpected response format: {data}")
-                return "Error: Unexpected response format from image API."
+                item = data['data'][0]
+                if 'b64_json' in item:
+                    return f"data:image/png;base64,{item['b64_json']}"
+                elif 'url' in item:
+                    return item['url']
+            
+            raise RuntimeError("Image content (url/b64_json) not found in response.")
         except Exception as e:
             logger.error(f"Exception during image generation: {str(e)}")
-            return f"Error: Image generation failed: {str(e)}"
+            raise RuntimeError(f"Image generation failed: {str(e)}")
 
 
     def _validate_env(self):

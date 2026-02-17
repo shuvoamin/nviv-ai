@@ -43,7 +43,8 @@ function App() {
       setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
       console.error('Error sending message:', error)
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }])
+      const errorMsg = error.response?.data?.detail || error.message || 'Something went wrong'
+      setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, I encountered an error: ${errorMsg}` }])
     } finally {
       setIsLoading(false)
     }
