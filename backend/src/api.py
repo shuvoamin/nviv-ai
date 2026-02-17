@@ -11,9 +11,9 @@ from fastapi.responses import FileResponse
 # Add the current directory to sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from app_state import diag_logger, chatbot, LOG_BUFFER, IMAGES_DIR
+from app_state import diag_logger, chatbot, IMAGES_DIR
 from utils.image_utils import save_base64_image
-from routes import twilio_routes, meta_routes
+from routes import twilio_routes, meta_routes, system_routes
 
 app = FastAPI(title="Nviv", description="Modular API for Nviv AI Chatbot")
 
@@ -27,6 +27,7 @@ app.add_middleware(
 )
 
 # Include Routers
+app.include_router(system_routes.router, tags=["System"])
 app.include_router(twilio_routes.router, tags=["Twilio"])
 app.include_router(meta_routes.router, tags=["Meta"])
 
@@ -81,22 +82,11 @@ async def get_image(filename: str, request: Request):
     diag_logger.info(f"Image fetched: {filename} by {ua}. Content-Type: {media_type}")
     return FileResponse(filepath, media_type=media_type)
 
-@app.get("/health")
-async def health_check(): return {"status": "ok"}
-
-@app.get("/debug-logs")
-async def debug_logs():
-    logs_html = "<html><head><title>Nviv Debug Logs</title><style>body{font-family:monospace;background:#1e1e1e;color:#d4d4d4;padding:20px;} li{margin-bottom:5px;border-bottom:1px solid #333;padding-bottom:5px;}</style></head><body>"
-    logs_html += "<h1>System Diagnostic Logs (Last 100)</h1><ul>"
-    for entry in reversed(list(LOG_BUFFER)):
-        color = "#ff4444" if "ERROR" in entry else "#ffbb33" if "WARNING" in entry else "#d4d4d4"
-        logs_html += f"<li style='color:{color}'>{entry}</li>"
-    return Response(content=logs_html + "</ul></body></html>", media_type="text/html")
-
 # Frontend implementation
 frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
 if frontend_dist.exists():
     app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
