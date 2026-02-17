@@ -152,8 +152,7 @@ async def process_twilio_background(body: str, from_number: str, media_url: str,
             if prompt:
                 image_result = chatbot.generate_image(prompt)
                 image_url = save_base64_image(image_result, host_url)
-                # Split messages to avoid caption conflicts
-                send_twilio_reply(from_number, "Here is your generated image!")
+                # Media-only message for a cleaner experience
                 send_twilio_reply(from_number, "", image_url)
                 return
         ai_response = chatbot.chat(f"{user_text}\n\n[Instruction: Keep your response under 1500 characters.]")
