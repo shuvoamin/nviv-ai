@@ -164,23 +164,17 @@ def send_twilio_reply(to_number: str, message_text: str, image_url: str = None):
         client = TwilioClient(account_sid, auth_token)
         # Build params
         params = {"from_": from_number, "to": to_number}
-        
-        # Twilio requirement: Must have either body or media_url, or both.
-        # If we have an image, we sometimes omit the body to debug 63019 conflicts.
         if message_text:
             params["body"] = message_text
-            
         if image_url:
             diag_logger.info(f"Adding media_url to Twilio params: {image_url}")
             params["media_url"] = [image_url]
-            
         # Add status callback to track delivery failures
         host_url = os.getenv("BASE_URL", "").rstrip("/")
         if host_url:
             if "azurewebsites.net" in host_url and not host_url.startswith("https"):
                 host_url = host_url.replace("http://", "https://")
             params["status_callback"] = f"{host_url}/twilio/status"
-            
         msg_instance = client.messages.create(**params)
         diag_logger.info(f"Twilio background reply sent. SID: {msg_instance.sid}, Status: {msg_instance.status}")
     except Exception as e:
@@ -301,4 +295,3 @@ if frontend_dist.exists():
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
- Riverside
