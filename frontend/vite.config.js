@@ -8,7 +8,10 @@ export default defineConfig({
     proxy: {
       '/chat': 'http://localhost:8000',
       '/generate-image': 'http://localhost:8000',
-      '/static': 'http://localhost:8000'
+      '/static': 'http://localhost:8000',
+      '/docs': 'http://localhost:8000',
+      '/openapi.json': 'http://localhost:8000',
+      '/health': 'http://localhost:8000'
     }
   }
 })

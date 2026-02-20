@@ -47,6 +47,7 @@ async def test_agent_initialization(mock_mcp_client):
                 mock_mcp_client.initialize.assert_awaited_once()
                 mock_mcp_client.get_tools.assert_awaited_once()
                 assert agent.tools is not None
+                await agent.cleanup()
 
 @pytest.mark.asyncio
 async def test_agent_initialization_azure_path(mock_mcp_client):
@@ -130,6 +131,7 @@ async def test_agent_initialization_standard_openai(mock_mcp_client):
             
             mock_openai.assert_called_with(model="gpt-4o")
             assert agent.model is not None
+            await agent.cleanup()
 
 @pytest.mark.asyncio
 async def test_agent_cleanup(mock_mcp_client):
