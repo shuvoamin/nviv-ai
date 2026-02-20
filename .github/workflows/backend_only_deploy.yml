@@ -5,9 +5,6 @@
 name: Backend Only Deploy to Azure Web App
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
