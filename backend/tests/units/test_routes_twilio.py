@@ -1,8 +1,8 @@
 import pytest
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
-def test_twilio_whatsapp_webhook_ack(client):
+def test_twilio_webhook_ack(client):
     """Verify that the Twilio webhook acknowledges messages immediately"""
     # Simulate a Form-encoded Twilio request
     payload = {
@@ -40,7 +40,7 @@ async def test_twilio_whatsapp_audio_processing(client):
             mock_get.return_value = mock_resp
             
             mock_bot.transcribe_audio.return_value = "Transcribed Text"
-            mock_bot.chat.return_value = "AI Response"
+            mock_bot.chat = AsyncMock(return_value="AI Response")
             
             with patch('routes.twilio_routes.send_twilio_reply') as mock_send:
                 # Run the async function directly since we are in an async test
@@ -87,20 +87,13 @@ async def test_twilio_background_no_op():
 async def test_twilio_background_exception():
     """Verify exception handling in background task"""
     from routes.twilio_routes import process_twilio_background
-    with patch('app_state.chatbot', side_effect=Exception("Boom")):
-        with patch('routes.twilio_routes.send_twilio_reply') as mock_send:
-             # Force exception by making chatbot access fail or something
-             # Actually, we can just mock send_twilio_reply to verify it sends error message
-             
-             # But how to trigger exception?
-             # AppState.chatbot access might not trigger it unless we mock the property?
-             # app_state.chatbot is an object.
-             
-             # Better: Mock app_state.chatbot.chat to raise exception
-             with patch('app_state.chatbot') as mock_bot:
-                 mock_bot.chat.side_effect = Exception("AI Error")
-                 await process_twilio_background("hello", "from", None, None, "host")
-                 mock_send.assert_called_with("from", "Sorry, I encountered an error processing your query.")
+    
+    # Mock app_state.chatbot.chat to raise exception
+    with patch('app_state.chatbot') as mock_bot:
+         mock_bot.chat = AsyncMock(side_effect=Exception("AI Error"))
+         with patch('routes.twilio_routes.send_twilio_reply') as mock_send:
+             await process_twilio_background("hello", "from", None, None, "host")
+             mock_send.assert_called_with("from", "Sorry, I encountered an error processing your query.")
 
 def test_twilio_send_reply_success(client):
     """Verify successful message sending"""

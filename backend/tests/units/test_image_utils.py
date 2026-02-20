@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 from pathlib import Path
 
 # Add the src directory to sys.path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "/src")
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) + "/src")
 
 from utils.image_utils import save_base64_image
 from app_state import IMAGES_DIR

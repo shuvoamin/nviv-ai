@@ -12,10 +12,23 @@ from fastapi.responses import FileResponse
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import app_state
+from config import APP_NAME
 from utils.image_utils import save_base64_image
 from routes import twilio_routes, meta_routes, system_routes
 
-app = FastAPI(title="Nviv AI", description="Enterprise API for Nviv AI Chatbot")
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize Chatbot Agent
+    if app_state.chatbot:
+        await app_state.chatbot.initialize()
+    yield
+    # Shutdown: Cleanup
+    if app_state.chatbot and hasattr(app_state.chatbot, 'agent'):
+        await app_state.chatbot.agent.cleanup()
+
+app = FastAPI(title=APP_NAME, description=f"Enterprise API for {APP_NAME} Chatbot", lifespan=lifespan)
 
 # Configure CORS
 app.add_middleware(
@@ -50,7 +63,8 @@ class ImageResponse(BaseModel):
 async def chat_endpoint(request: ChatRequest):
     if app_state.chatbot is None: raise HTTPException(status_code=503, detail="Service unavailable")
     if request.reset: app_state.chatbot.reset_history()
-    return ChatResponse(message=app_state.chatbot.chat(request.message))
+    response = await app_state.chatbot.chat(request.message)
+    return ChatResponse(message=response)
 
 @app.post("/generate-image", response_model=ImageResponse)
 async def generate_image_endpoint(request: ImageRequest, api_request: Request):

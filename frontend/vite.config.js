@@ -7,7 +7,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/chat': 'http://localhost:8000',
-      '/generate-image': 'http://localhost:8000'
+      '/generate-image': 'http://localhost:8000',
+      '/static': 'http://localhost:8000'
     }
   }
 })

@@ -1,4 +1,4 @@
-name: Deploy Nviv AI to Azure
+name: Full Deployment to Azure Web App
 
 on:
   push:

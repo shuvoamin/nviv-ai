@@ -9,7 +9,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "cd .. && venv/bin/pytest --cov=backend/src --cov-report=term-missing backend/tests"
+    "test": "cd .. && venv/bin/pytest --cov=backend/src --cov-report=term-missing backend/tests/units"
   },
   "dependencies": {
     "axios": "^1.13.5",

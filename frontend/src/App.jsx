@@ -10,6 +10,7 @@ function App() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef(null)
+  const inputRef = useRef(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -19,26 +20,23 @@ function App() {
     scrollToBottom()
   }, [messages])
 
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
   const sendMessage = async (e) => {
     e.preventDefault()
-    const isImageRequest = input.toLowerCase().startsWith('/image')
+
     const userMessage = { role: 'user', content: input }
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setIsLoading(true)
 
     try {
-      let assistantMessage;
-      if (isImageRequest) {
-        const prompt = input.substring(7).trim()
-        const response = await axios.post('/generate-image', { prompt })
-        assistantMessage = { role: 'assistant', content: response.data.url, type: 'image' }
-      } else {
-        const response = await axios.post('/chat', {
-          message: input
-        })
-        assistantMessage = { role: 'assistant', content: response.data.message, type: 'text' }
-      }
+      const response = await axios.post('/chat', {
+        message: input
+      })
+      const assistantMessage = { role: 'assistant', content: response.data.message }
 
       setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
@@ -47,6 +45,9 @@ function App() {
       setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, I encountered an error: ${errorMsg}` }])
     } finally {
       setIsLoading(false)
+      setTimeout(() => {
+        inputRef.current?.focus()
+      }, 100)
     }
   }
 
@@ -61,11 +62,7 @@ function App() {
           {messages.map((msg, index) => (
             <div key={index} className={`message ${msg.role}`}>
               <div className="message-bubble">
-                {msg.type === 'image' ? (
-                  <img src={msg.content} alt="Generated" className="generated-image" />
-                ) : (
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
-                )}
+                <ReactMarkdown>{msg.content}</ReactMarkdown>
               </div>
             </div>
           ))}
@@ -85,6 +82,7 @@ function App() {
       <footer className="chat-input-area">
         <form onSubmit={sendMessage} className="input-form">
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}

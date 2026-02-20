@@ -19,18 +19,21 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--bg-color);
   color: var(--text-color);
-  min-height: 100vh;
+  height: 100vh;
+  width: 100vw;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 2rem 0;
+  overflow: hidden;
+  /* Prevent body scroll */
 }
 
 #root {
   width: 100%;
   max-width: 800px;
-  height: calc(100vh - 4rem);
-  max-height: 900px;
+  height: 100%;
+  max-height: 90vh;
+  /* Give some breathing room */
   display: flex;
   flex-direction: column;
 }
@@ -66,6 +69,15 @@ body {
   padding: 2rem;
   display: flex;
   flex-direction: column;
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE/Edge */
+}
+
+.chat-window::-webkit-scrollbar {
+  display: none;
+  /* Chrome/Safari/Opera */
 }
 
 .messages-container {
@@ -109,12 +121,15 @@ body {
   border-bottom-left-radius: 0.2rem;
 }
 
-.generated-image {
-  width: 100%;
-  max-width: 400px;
+.message-bubble img {
+  max-width: 100%;
+  max-height: 300px;
+  width: auto;
+  height: auto;
   border-radius: 0.8rem;
   margin-top: 0.5rem;
   display: block;
+  object-fit: contain;
 }
 
 .chat-input-area {

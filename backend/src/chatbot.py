@@ -3,6 +3,9 @@ import requests
 import logging
 from openai import AzureOpenAI
 from dotenv import load_dotenv
+from config import APP_NAME
+
+from agent import ChatbotAgent
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -19,6 +22,9 @@ class ChatBot:
         self.api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
 
         self._validate_env()
+        
+        # Initialize Agent
+        self.agent = ChatbotAgent()
 
         self.client = AzureOpenAI(
             azure_endpoint=self.endpoint,
@@ -26,22 +32,22 @@ class ChatBot:
             api_version=self.api_version
         )
         
-        
-        # Load knowledge base
-        self.system_message = self._load_knowledge_base()
-        self.history = [{"role": "system", "content": self.system_message}]
+    async def initialize(self):
+        await self.agent.initialize()
+
+
 
     def _load_knowledge_base(self):
         """Load knowledge base from file or use default"""
-        knowledge_file = os.path.join(os.path.dirname(__file__), "..", "knowledge_base.md")
+        knowledge_file = os.path.join(os.path.dirname(__file__), "..", "..", "training", "knowledge_base.md")
         
         if os.path.exists(knowledge_file):
             with open(knowledge_file, 'r') as f:
                 knowledge = f.read()
-                return f"You are Nviv, a helpful AI assistant.\n\n{knowledge}\n\nUse this knowledge to answer questions accurately."
+                return f"You are {APP_NAME}, a helpful AI assistant.\n\n{knowledge}\n\nUse this knowledge to answer questions accurately."
         
         # Default if no knowledge base file
-        return "You are Nviv, a helpful AI assistant."
+        return f"You are {APP_NAME}, a helpful AI assistant."
 
     def transcribe_audio(self, audio_content) -> str:
         """Transcribe audio using Azure OpenAI Whisper"""
@@ -116,23 +122,8 @@ class ChatBot:
         if not all([self.endpoint, self.api_key, self.deployment_name]):
             raise ValueError("Missing required environment variables: AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_DEPLOYMENT_NAME")
 
-    def chat(self, user_input: str) -> str:
-        # Reload knowledge base to pick up any changes
-        self.system_message = self._load_knowledge_base()
-        self.history[0] = {"role": "system", "content": self.system_message}
-        
-        self.history.append({"role": "user", "content": user_input})
-        
-        try:
-            response = self.client.chat.completions.create(
-                model=self.deployment_name,
-                messages=self.history
-            )
-            assistant_response = response.choices[0].message.content
-            self.history.append({"role": "assistant", "content": assistant_response})
-            return assistant_response
-        except Exception as e:
-            return f"Error: {str(e)}"
+    async def chat(self, user_input: str) -> str:
+        return await self.agent.chat(user_input)
 
     def reset_history(self):
-        self.history = [{"role": "system", "content": self.system_message}]
+        self.agent.reset_history()

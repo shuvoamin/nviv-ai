@@ -40,6 +40,7 @@ Azure App Service is ideal for hosting both the Python backend and React fronten
    ```bash
    az webapp up --runtime PYTHON:3.9 --sku B1 --name <your-app-name>
    ```
+   *Note: `az webapp up` and the VS Code Azure extension normally ignore files in `.gitignore` (which includes `frontend/dist`). We have added an `.azureignore` and `.vscode/settings.json` to ensure the compiled frontend is included when you deploy.*
 
 5. **Configure environment variables** in Azure Portal under Configuration → Application settings.
 

@@ -1,7 +1,7 @@
 import pytest
 import pytest
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 def test_meta_webhook_verification(client):
     """Verify that the Meta webhook challenge logic works"""
@@ -59,7 +59,7 @@ def test_meta_webhook_body_error(client):
     
     # We can mock Request.json
     with patch("fastapi.Request.json", side_effect=ValueError("Bad JSON")):
-        response = client.post("/meta/webhook", data="bad data")
+        response = client.post("/meta/webhook", content="bad data")
         assert response.status_code == 200
         assert response.json() == {"status": "error"}
 
@@ -120,13 +120,15 @@ def test_meta_process_audio_message(client):
                 mock_get.return_value = mock_resp
                 
                 mock_bot.transcribe_audio.return_value = "Audio Text"
-                mock_bot.chat.return_value = "AI Reply"
+                mock_bot.chat = AsyncMock(return_value="AI Reply")
                 
                 with patch('routes.meta_routes.send_meta_whatsapp_message') as mock_send:
                     import asyncio
                     asyncio.run(process_meta_background(payload, "http://host"))
                     
                     mock_bot.transcribe_audio.assert_called_once()
+                    # assert_called() on AsyncMock works but verify await happened:
+                     # mock_bot.chat.assert_awaited_once() # or just assert_called if we don't care about await detail
                     mock_bot.chat.assert_called()
                     mock_send.assert_called_with("123", "AI Reply")
 

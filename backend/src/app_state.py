@@ -14,6 +14,11 @@ from chatbot import ChatBot
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from config import APP_NAME
+
+# --- Configuration ---
+# APP_NAME imported from config
+
 # --- In-Memory Diagnostic Logging ---
 LOG_BUFFER = deque(maxlen=100)
 

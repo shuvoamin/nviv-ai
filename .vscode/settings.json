@@ -1,0 +1,15 @@
+{
+    "appService.zipIgnorePattern": [
+        "node_modules{,/**}",
+        ".vscode{,/**}",
+        ".vuepress{,/**}",
+        ".github{,/**}",
+        "__pycache__{,/**}",
+        "venv{,/**}",
+        "env{,/**}",
+        ".venv{,/**}",
+        ".env",
+        ".pytest_cache{,/**}",
+        "frontend/src{,/**}"
+    ]
+}
