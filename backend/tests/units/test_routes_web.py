@@ -9,13 +9,7 @@ def test_web_chat_endpoint(client, mock_chatbot):
     assert response.status_code == 200
     assert "Mock AI Response" in response.json()["message"]
 
-def test_web_image_generation_endpoint(client, mock_chatbot):
-    """Verify the /generate-image endpoint returns a valid URL"""
-    payload = {"prompt": "a beautiful sunset"}
-    response = client.post("/generate-image", json=payload)
-    
-    assert response.status_code == 200
-    assert "/static/generated_images/" in response.json()["url"]
+
 
 def test_get_image_not_found(client):
     """Verify that requesting a non-existent image returns a 404"""
@@ -59,11 +53,7 @@ def test_web_chat_unavailable(client):
         response = client.post("/chat", json={"message": "hello"})
         assert response.status_code == 503
 
-def test_web_image_gen_unavailable(client):
-    """Verify 503 when chatbot is not initialized"""
-    with patch('app_state.chatbot', None):
-        response = client.post("/generate-image", json={"prompt": "hello"})
-        assert response.status_code == 503
+
 
 def test_chat_endpoint_success(mock_chatbot, client):
     """Verify successful chat response."""
@@ -80,10 +70,4 @@ def test_chat_endpoint_with_reset(mock_chatbot, client):
     mock_chatbot.reset_history.assert_awaited_once_with("test_123")
     mock_chatbot.chat.assert_any_call("hello", thread_id="test_123")
 
-def test_web_image_gen_error(client, mock_chatbot):
-    """Verify 500 when image generation logic fails"""
-    with patch.object(mock_chatbot, 'generate_image', side_effect=Exception("Gen Error")):
-        with patch('app_state.diag_logger'):
-            response = client.post("/generate-image", json={"prompt": "hello"})
-            assert response.status_code == 500
-            assert "Gen Error" in response.json()["detail"]
+

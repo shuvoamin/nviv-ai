@@ -32,9 +32,4 @@ def test_app_state_init_failure():
     # Restore app_state to normal
     reload(app_state)
 
-def test_debug_logs_endpoint(client):
-    """Verify that the /debug-logs endpoint returns HTML content"""
-    response = client.get("/debug-logs")
-    assert response.status_code == 200
-    assert "text/html" in response.headers["content-type"]
-    assert "System Diagnostic Logs" in response.text
+

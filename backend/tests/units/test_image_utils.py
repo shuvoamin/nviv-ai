@@ -7,7 +7,7 @@ from pathlib import Path
 # Add the src directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) + "/src")
 
-from utils.image_utils import save_base64_image
+from utils.image_utils import save_base64_image, cleanup_old_images
 from app_state import IMAGES_DIR
 
 def test_save_base64_image_success():
@@ -76,3 +76,59 @@ def test_save_base64_azure_url():
                          url = save_base64_image("data:image/png;base64,data", "http://myapp.azurewebsites.net")
                          # Use equality check with substring to debug value if it fails
                          assert "https://myapp.azurewebsites.net" in url
+
+def test_cleanup_old_images_success(tmp_path):
+    """Verify that images older than retention are deleted"""
+    import time
+    mock_dir = tmp_path / "images"
+    mock_dir.mkdir()
+    
+    # Create two files: one new, one old
+    new_file = mock_dir / "new.jpg"
+    new_file.write_text("dummy")
+    
+    old_file = mock_dir / "old.jpg"
+    old_file.write_text("dummy")
+    
+    # Set the 'old' file's mtime to 2 hours ago
+    two_hours_ago = time.time() - (2 * 3600)
+    os.utime(old_file, (two_hours_ago, two_hours_ago))
+    
+    with patch('utils.image_utils.IMAGES_DIR', mock_dir):
+        with patch('utils.image_utils.IMAGE_RETENTION_HOURS', 1):
+            with patch('utils.image_utils.diag_logger') as mock_logger:
+                cleanup_old_images()
+                
+                # Check deleted and kept
+                assert new_file.exists()
+                assert not old_file.exists()
+                mock_logger.info.assert_called_with("Cleaned up 1 old generated images")
+
+def test_cleanup_old_images_error_deletion(tmp_path):
+    """Verify that errors during deletion are caught and logged"""
+    import time
+    mock_dir = tmp_path / "images"
+    mock_dir.mkdir()
+    old_file = mock_dir / "old.jpg"
+    old_file.write_text("dummy")
+    two_hours_ago = time.time() - (2 * 3600)
+    os.utime(old_file, (two_hours_ago, two_hours_ago))
+    
+    with patch('utils.image_utils.IMAGES_DIR', mock_dir):
+        with patch('utils.image_utils.IMAGE_RETENTION_HOURS', 1):
+            # We mock the Path.unlink instead of builtins to avoid breaking pytest's tmpdir
+            with patch.object(Path, 'unlink', side_effect=PermissionError("Denied")):
+                with patch('utils.image_utils.diag_logger') as mock_logger:
+                    cleanup_old_images()
+                    assert old_file.exists()
+                    mock_logger.error.assert_any_call("Failed to delete old image old.jpg: Denied")
+
+def test_cleanup_old_images_general_error():
+    """Verify general exceptions during cleanup are caught"""
+    mock_dir = MagicMock()
+    mock_dir.glob.side_effect = Exception("Glob error")
+    with patch('utils.image_utils.IMAGES_DIR', mock_dir):
+        with patch('utils.image_utils.diag_logger') as mock_logger:
+            cleanup_old_images()
+            mock_logger.error.assert_called_with("Error during image cleanup: Glob error")
+

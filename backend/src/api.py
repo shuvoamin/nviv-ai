@@ -1,5 +1,6 @@
 import os
 import sys
+import asyncio
 import uvicorn
 from fastapi import FastAPI, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,13 +19,32 @@ from routes import twilio_routes, meta_routes, system_routes
 
 from contextlib import asynccontextmanager
 
+cleanup_task_ref = None
+
+async def background_cleanup_task():
+    while True:
+        try:
+            from utils.image_utils import cleanup_old_images
+            await asyncio.to_thread(cleanup_old_images)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            app_state.diag_logger.error(f"Image cleanup task error: {e}")
+        # Run cleanup every hour (3600 seconds = 1 hour)
+        await asyncio.sleep(3600)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global cleanup_task_ref
     # Startup: Initialize Chatbot Agent
     if app_state.chatbot:
         await app_state.chatbot.initialize()
+        
+    cleanup_task_ref = asyncio.create_task(background_cleanup_task())
     yield
     # Shutdown: Cleanup
+    if cleanup_task_ref:
+        cleanup_task_ref.cancel()
     if app_state.chatbot and hasattr(app_state.chatbot, 'agent'):
         await app_state.chatbot.agent.cleanup()
 
@@ -54,11 +74,6 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     message: str
 
-class ImageRequest(BaseModel):
-    prompt: str
-
-class ImageResponse(BaseModel):
-    url: str
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
@@ -67,16 +82,6 @@ async def chat_endpoint(request: ChatRequest):
     response = await app_state.chatbot.chat(request.message, thread_id=request.session_id)
     return ChatResponse(message=response)
 
-@app.post("/generate-image", response_model=ImageResponse)
-async def generate_image_endpoint(request: ImageRequest, api_request: Request):
-    if app_state.chatbot is None: raise HTTPException(status_code=503, detail="Service unavailable")
-    try:
-        image_result = app_state.chatbot.generate_image(request.prompt)
-        image_url = save_base64_image(image_result, api_request.base_url)
-        return ImageResponse(url=image_url)
-    except Exception as e:
-        app_state.diag_logger.error(f"Image generation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/static/generated_images/{filename}")
 async def get_image(filename: str, request: Request):

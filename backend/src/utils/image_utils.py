@@ -1,8 +1,10 @@
 import base64
 import uuid
 import io
+import time
 from PIL import Image
 from app_state import IMAGES_DIR, diag_logger
+from config import IMAGE_RETENTION_HOURS
 
 def save_base64_image(image_data: str, base_url: str) -> str:
     """Saves base64 image and transcodes to JPEG for WhatsApp compatibility"""
@@ -34,3 +36,26 @@ def save_base64_image(image_data: str, base_url: str) -> str:
     except Exception as e:
         diag_logger.error(f"Failed to transcode base64 image: {e}")
         return image_data
+
+def cleanup_old_images():
+    """Deletes images older than the configured retention period."""
+    try:
+        current_time = time.time()
+        retention_seconds = IMAGE_RETENTION_HOURS * 3600
+        deleted_count = 0
+        
+        for filepath in IMAGES_DIR.glob('*'):
+            if filepath.is_file():
+                # Get the file modification time
+                file_age = current_time - filepath.stat().st_mtime
+                if file_age > retention_seconds:
+                    try:
+                        filepath.unlink()
+                        deleted_count += 1
+                    except Exception as e:
+                        diag_logger.error(f"Failed to delete old image {filepath.name}: {e}")
+                        
+        if deleted_count > 0:
+            diag_logger.info(f"Cleaned up {deleted_count} old generated images")
+    except Exception as e:
+        diag_logger.error(f"Error during image cleanup: {e}")
