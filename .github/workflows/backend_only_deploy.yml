@@ -2,7 +2,7 @@
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 # More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
 
-name: Backend Only Deploy to Azure
+name: Backend Only Deploy to Azure Web App
 
 on:
   push:
