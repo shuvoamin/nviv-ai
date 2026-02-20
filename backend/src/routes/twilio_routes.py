@@ -28,7 +28,10 @@ async def process_twilio_background(body: str, from_number: str, media_url: str,
                 # Media-only message for cleaner UX
                 send_twilio_reply(from_number, "", image_url)
                 return
-        ai_response = await app_state.chatbot.chat(f"{user_text}\n\n[Instruction: Keep your response under 1500 characters.]")
+        ai_response = await app_state.chatbot.chat(
+            f"{user_text}\n\n[Instruction: Keep your response under 1500 characters.]",
+            thread_id=from_number
+        )
         
         # Check if the AI generated an image (markdown format: ![alt](url))
         image_match = re.search(r'!\[.*?\]\((.*?)\)', ai_response)

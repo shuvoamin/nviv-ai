@@ -78,7 +78,7 @@ async def test_agent_chat_flow(mock_mcp_client):
     }
     agent.app.ainvoke.return_value = mock_response
     
-    response = await agent.chat("Hello")
+    response = await agent.chat("Hello", thread_id="test_thread")
     
     agent.app.ainvoke.assert_awaited_once()
     assert response == "Hi there!"
@@ -93,7 +93,7 @@ async def test_agent_chat_error_handling(mock_mcp_client):
     # Simulate an error
     agent.app.ainvoke.side_effect = Exception("Graph error")
     
-    response = await agent.chat("Hello")
+    response = await agent.chat("Hello", thread_id="test_thread")
     
     assert "I encountered an error" in response
     assert "Graph error" in response
@@ -199,12 +199,13 @@ async def test_agent_call_model_preserves_system_message(mock_mcp_client):
 
 @pytest.mark.asyncio
 async def test_agent_reset_history():
-    """Test history reset generates new thread ID."""
+    """Test history reset attempts to clear records."""
     agent = ChatbotAgent()
-    old_id = agent.thread_id
-    agent.reset_history()
-    assert agent.thread_id != old_id
-    assert isinstance(agent.thread_id, str)
+    agent.conn = MagicMock()
+    
+    agent.reset_history("test_thread")
+    
+    assert agent.conn.execute.called
 
 @pytest.mark.asyncio
 async def test_agent_chat_auto_initialize(mock_mcp_client):
@@ -225,6 +226,6 @@ async def test_agent_chat_auto_initialize(mock_mcp_client):
     # Ensure app is None initially
     agent.app = None
     
-    await agent.chat("Hello")
+    await agent.chat("Hello", thread_id="test_thread")
     
     agent.initialize.assert_awaited_once()

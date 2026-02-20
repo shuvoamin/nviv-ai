@@ -12,6 +12,9 @@ function App() {
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
+  // Generate a random session ID once per tab session so different users have isolated chat histories
+  const [sessionId] = useState(() => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2))
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
@@ -34,7 +37,8 @@ function App() {
 
     try {
       const response = await axios.post('/chat', {
-        message: input
+        message: input,
+        session_id: sessionId // Pass session ID to backend
       })
       const assistantMessage = { role: 'assistant', content: response.data.message }
 

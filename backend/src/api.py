@@ -48,6 +48,7 @@ app.include_router(meta_routes.router, tags=["Meta"])
 
 class ChatRequest(BaseModel):
     message: str
+    session_id: str = "web_default"
     reset: bool = False
 
 class ChatResponse(BaseModel):
@@ -62,8 +63,8 @@ class ImageResponse(BaseModel):
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     if app_state.chatbot is None: raise HTTPException(status_code=503, detail="Service unavailable")
-    if request.reset: app_state.chatbot.reset_history()
-    response = await app_state.chatbot.chat(request.message)
+    if request.reset: app_state.chatbot.reset_history(request.session_id)
+    response = await app_state.chatbot.chat(request.message, thread_id=request.session_id)
     return ChatResponse(message=response)
 
 @app.post("/generate-image", response_model=ImageResponse)

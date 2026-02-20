@@ -57,7 +57,7 @@ async def test_chatbot_chat_flow(mock_agent):
             bot = ChatBot()
             response = await bot.chat("hello world")
             
-            mock_agent.chat.assert_awaited_once_with("hello world")
+            mock_agent.chat.assert_awaited_once_with("hello world", thread_id="default_thread")
             assert response == "Mocked AI Response"
 
 @pytest.mark.asyncio

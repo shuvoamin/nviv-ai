@@ -18,7 +18,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], operator.add]
 
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite import SqliteSaver
+import sqlite3
 import uuid
 
 # ... imports ...
@@ -34,10 +35,18 @@ class ChatbotAgent:
         self.model = None
         self.workflow = None
         self.app = None
-        self.memory = MemorySaver()
-        self.thread_id = str(uuid.uuid4())
-        self.system_message = self._load_system_message()
         
+        # Ensure data directory exists
+        self.data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
+        os.makedirs(self.data_dir, exist_ok=True)
+        self.db_path = os.path.join(self.data_dir, "chat_history.sqlite")
+        
+        # We need to keep the connection open for the lifetime of the agent
+        # check_same_thread=False allows async calls to reuse it
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self.memory = SqliteSaver(self.conn)
+        
+        self.system_message = self._load_system_message()
 
 
     def _load_system_message(self) -> str:
@@ -98,23 +107,34 @@ class ChatbotAgent:
             return "continue"
         return "end"
 
-    async def chat(self, message: str):
+    async def chat(self, message: str, thread_id: str):
         if not self.app:
             await self.initialize()
             
-        config = {"configurable": {"thread_id": self.thread_id}}
+        config = {"configurable": {"thread_id": thread_id}}
         inputs = {"messages": [HumanMessage(content=message)]}
         
         try:
-            # Stream or invoke? Invoke gets the final state.
-            # Stream or invoke? Invoke gets the final state.
+            # Invoke gets the final state of the graph
             final_state = await self.app.ainvoke(inputs, config=config)
             return final_state["messages"][-1].content
         except Exception as e:
             return f"I encountered an error: {str(e)}"
 
-    def reset_history(self):
-        self.thread_id = str(uuid.uuid4())
+    def reset_history(self, thread_id: str):
+        # We could delete the rows manually, or just let users generate a new thread.
+        # But if we must clear a specific thread ID's state:
+        if self.conn:
+            try:
+                # Remove checkpoints associated with this thread to 'reset' it
+                self.conn.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
+                self.conn.execute("DELETE FROM checkpoint_blobs WHERE thread_id = ?", (thread_id,))
+                self.conn.execute("DELETE FROM checkpoint_writes WHERE thread_id = ?", (thread_id,))
+                self.conn.commit()
+            except Exception as e:
+                print(f"Failed to reset history for {thread_id}: {e}")
 
     async def cleanup(self):
         await self.mcp_client.close()
+        if hasattr(self, 'conn') and self.conn:
+            self.conn.close()

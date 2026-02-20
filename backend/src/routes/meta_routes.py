@@ -33,7 +33,10 @@ async def process_meta_background(body: dict, host_url: str):
                             image_url = save_base64_image(image_result, host_url)
                             send_meta_whatsapp_image(from_number, image_url)
                         else:
-                            ai_response = await app_state.chatbot.chat(f"{user_text}\n\n[Instruction: Keep your response under 1500 characters.]")
+                            ai_response = await app_state.chatbot.chat(
+                                f"{user_text}\n\n[Instruction: Keep your response under 1500 characters.]",
+                                thread_id=from_number
+                            )
                             
                             # Check if the AI generated an image (markdown format: ![alt](url))
                             image_match = re.search(r'!\[.*?\]\((.*?)\)', ai_response)

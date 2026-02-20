@@ -65,6 +65,21 @@ def test_web_image_gen_unavailable(client):
         response = client.post("/generate-image", json={"prompt": "hello"})
         assert response.status_code == 503
 
+def test_chat_endpoint_success(mock_chatbot, client):
+    """Verify successful chat response."""
+    response = client.post("/chat", json={"message": "hello", "session_id": "test_123"})
+    assert response.status_code == 200
+    assert response.json() == {"message": "Global Mock AI Response"}
+    mock_chatbot.chat.assert_any_call("hello", thread_id="test_123")
+    mock_chatbot.reset_history.assert_not_called()
+
+def test_chat_endpoint_with_reset(mock_chatbot, client):
+    """Verify chat endpoint with reset flag."""
+    response = client.post("/chat", json={"message": "hello", "reset": True, "session_id": "test_123"})
+    assert response.status_code == 200
+    mock_chatbot.reset_history.assert_called_once_with("test_123")
+    mock_chatbot.chat.assert_any_call("hello", thread_id="test_123")
+
 def test_web_image_gen_error(client, mock_chatbot):
     """Verify 500 when image generation logic fails"""
     with patch.object(mock_chatbot, 'generate_image', side_effect=Exception("Gen Error")):
