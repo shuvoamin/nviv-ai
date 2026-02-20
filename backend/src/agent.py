@@ -137,8 +137,7 @@ class ChatbotAgent:
             try:
                 # Remove checkpoints associated with this thread to 'reset' it
                 await self.conn.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
-                await self.conn.execute("DELETE FROM checkpoint_blobs WHERE thread_id = ?", (thread_id,))
-                await self.conn.execute("DELETE FROM checkpoint_writes WHERE thread_id = ?", (thread_id,))
+                await self.conn.execute("DELETE FROM writes WHERE thread_id = ?", (thread_id,))
                 await self.conn.commit()
             except Exception as e:
                 print(f"Failed to reset history for {thread_id}: {e}")
